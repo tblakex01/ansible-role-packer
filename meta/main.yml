@@ -3,20 +3,24 @@ dependencies: []
 
 galaxy_info:
   author: geerlingguy
-  description: "Packer for Linux"
+  role_name: packer
+  description: "Installs Packer, the HashiCorp image and box builder, on Linux."
   company: "Midwestern Mac, LLC"
-  license: "license (BSD, MIT)"
-  min_ansible_version: 2.0
+  license: "MIT"
+  min_ansible_version: "2.15"
   platforms:
     - name: EL
       versions:
-        - all
+        - "8"
+        - "9"
     - name: Ubuntu
       versions:
-        - all
+        - jammy
+        - noble
     - name: Debian
       versions:
-        - all
+        - bullseye
+        - bookworm
   galaxy_tags:
     - development
     - system

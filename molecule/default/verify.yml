@@ -1,0 +1,29 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Check that the packer binary is present.
+      ansible.builtin.stat:
+        path: /usr/local/bin/packer
+      register: packer_binary
+
+    - name: Assert that packer was installed.
+      ansible.builtin.assert:
+        that:
+          - packer_binary.stat.exists
+          - packer_binary.stat.executable
+        fail_msg: "The packer binary was not installed at /usr/local/bin/packer."
+
+    - name: Gather the installed packer version.
+      ansible.builtin.command: packer version
+      changed_when: false
+      register: packer_version_output
+
+    - name: Assert that the expected packer version is installed.
+      ansible.builtin.assert:
+        that:
+          - "'1.15.4' in packer_version_output.stdout"
+        fail_msg: >-
+          Expected Packer 1.15.4, got: {{ packer_version_output.stdout }}

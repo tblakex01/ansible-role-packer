@@ -1,0 +1,8 @@
+---
+# See https://ansible.readthedocs.io/projects/lint/configuring/
+exclude_paths:
+  - .github/
+  - molecule/
+
+skip_list:
+  - role-name  # Repository directory name is not a valid Galaxy role name.
