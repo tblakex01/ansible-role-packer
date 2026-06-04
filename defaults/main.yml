@@ -1,4 +1,25 @@
 ---
-packer_version: "1.0.0"
-packer_arch: "amd64"
+# The version of Packer to install.
+packer_version: "1.15.4"
+
+# Target CPU architecture. Auto-detected from the host by default; override to
+# force a specific value (e.g. "amd64", "arm64", "arm", "386").
+packer_arch: "{{ packer_arch_map[ansible_facts['architecture']] | default('amd64') }}"
+packer_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+  armv7l: arm
+  armv6l: arm
+  i386: "386"
+  ppc64le: ppc64le
+
+# Directory the `packer` binary is installed into (must be on the system $PATH).
 packer_bin_path: /usr/local/bin
+
+# Verify the downloaded archive against HashiCorp's published SHA256SUMS.
+packer_verify_checksum: true
+
+# Download locations (derived from the variables above).
+packer_download_url: "https://releases.hashicorp.com/packer/{{ packer_version }}/packer_{{ packer_version }}_linux_{{ packer_arch }}.zip"
+packer_checksum_url: "https://releases.hashicorp.com/packer/{{ packer_version }}/packer_{{ packer_version }}_SHA256SUMS"
+packer_download_dest: "/tmp/packer_{{ packer_version }}_linux_{{ packer_arch }}.zip"

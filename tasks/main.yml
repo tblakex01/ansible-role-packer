@@ -1,10 +1,20 @@
 ---
 - name: Ensure unzip is installed.
-  package: name=unzip state=present
+  ansible.builtin.package:
+    name: unzip
+    state: present
 
-- name: Download and unarchive Packer.
-  unarchive:
-    src: https://releases.hashicorp.com/packer/{{ packer_version }}/packer_{{ packer_version }}_linux_{{ packer_arch }}.zip
+- name: Download Packer archive.
+  ansible.builtin.get_url:
+    url: "{{ packer_download_url }}"
+    dest: "{{ packer_download_dest }}"
+    checksum: "{{ ('sha256:' ~ packer_checksum_url) if (packer_verify_checksum | bool) else omit }}"
+    mode: "0644"
+
+- name: Install Packer.
+  ansible.builtin.unarchive:
+    src: "{{ packer_download_dest }}"
     dest: "{{ packer_bin_path }}"
     remote_src: true
     creates: "{{ packer_bin_path }}/packer"
+    mode: "0755"
