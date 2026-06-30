@@ -30,7 +30,7 @@ jobs:
       - name: Set up Python 3.
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
       - name: Install test dependencies.
         run: pip3 install -r requirements.txt
@@ -67,7 +67,7 @@ jobs:
       - name: Set up Python 3.
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
       - name: Install test dependencies.
         run: pip3 install -r requirements.txt
@@ -78,3 +78,7 @@ jobs:
           PY_COLORS: "1"
           ANSIBLE_FORCE_COLOR: "1"
           MOLECULE_DISTRO: ${{ matrix.distro }}
+          # Boot systemd as PID 1 so `become`/sudo works inside the container.
+          # /usr/lib/systemd/systemd resolves on all matrix images (EL natively,
+          # Debian/Ubuntu via the /lib -> /usr/lib usrmerge symlink).
+          MOLECULE_DOCKER_COMMAND: "/usr/lib/systemd/systemd"
