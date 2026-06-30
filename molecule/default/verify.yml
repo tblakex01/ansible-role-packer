@@ -4,24 +4,19 @@
   # Containers are entered as root (see molecule.yml); no sudo-based become.
   become: false
 
+  # Load the role defaults as top-level vars so the assertions track the values
+  # the role actually uses. They must be loaded top-level (not into a namespace)
+  # because the defaults are self-referential -- e.g. packer_download_url embeds
+  # "{{ packer_version }}" -- which only resolves when the names exist at play
+  # scope. A scenario that overrides these should pass them as extra-vars (which
+  # outrank vars_files) so both converge and verify stay in sync.
+  vars_files:
+    - ../../defaults/main.yml
+
   vars:
     packer_e2e_dir: /tmp/packer-e2e
 
   tasks:
-    # --- Resolve expected values ------------------------------------------
-    # Load the role defaults into a namespace (rather than as top-level play
-    # vars, which would outrank inventory) and use them only as a fallback, so
-    # any scenario-specific override of packer_version/packer_bin_path wins.
-    - name: Load role defaults for fallback values.
-      ansible.builtin.include_vars:
-        file: ../../defaults/main.yml
-        name: packer_role_defaults
-
-    - name: Resolve the expected packer version and install path.
-      ansible.builtin.set_fact:
-        packer_version: "{{ packer_version | default(packer_role_defaults.packer_version) }}"
-        packer_bin_path: "{{ packer_bin_path | default(packer_role_defaults.packer_bin_path) }}"
-
     # --- Installation checks ----------------------------------------------
     - name: Check that the packer binary is present.
       ansible.builtin.stat:
