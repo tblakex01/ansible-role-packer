@@ -11,6 +11,10 @@ name: CI
     # releases, plugin registry changes) even when the role itself is idle.
     - cron: "30 5 * * 2"
 
+# This workflow only needs to read the repository contents.
+permissions:
+  contents: read
+
 defaults:
   run:
     # Check the role out into a directory matching its Galaxy name so that
@@ -26,6 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: "geerlingguy.packer"
+          persist-credentials: false
 
       - name: Set up Python 3.
         uses: actions/setup-python@v5
@@ -63,6 +68,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: "geerlingguy.packer"
+          persist-credentials: false
 
       - name: Set up Python 3.
         uses: actions/setup-python@v5
