@@ -68,18 +68,35 @@ This role is tested with [Molecule](https://ansible.readthedocs.io/projects/mole
 
 ### What the tests cover
 
-The CI pipeline runs two stages:
+The CI pipeline runs three stages:
 
 1. **Lint** — `yamllint` and `ansible-lint` over the role.
-2. **Molecule** — a matrix of supported distributions (Ubuntu 24.04/22.04, Debian 12/11, Rocky Linux 9/8) that each run the full `create → converge → idempotence → verify` sequence. This both installs Packer via the role and proves the run is idempotent.
+2. **Molecule (default)** — a matrix of supported distributions (Ubuntu 24.04/22.04, Debian 12/11, Rocky Linux 9/8) that each run the full `create → converge → idempotence → verify` sequence. This installs Packer with the role defaults and proves the run is idempotent.
+3. **Molecule (override)** — the `override` scenario (run on Ubuntu 24.04 and Rocky Linux 9) installs Packer with `packer_verify_checksum: false` and a custom `packer_bin_path`, covering the role's non-default branches.
 
-The Molecule `verify` step performs an **end-to-end check** of the installed binary: it asserts the expected version, then runs a real `packer init`, `packer validate`, and `packer build` against a `null`-builder template with a `shell-local` provisioner (no cloud credentials or target machine required), confirming Packer is fully functional after installation.
+The `verify` step performs an **end-to-end check** of the installed binary: it asserts the expected version, then validates a real `null`-builder HCL template (`packer validate -syntax-only`). It additionally attempts a full `packer init` + `packer build` with a `shell-local` provisioner (no cloud credentials needed); when the Packer plugin registry is reachable this runs a real build and asserts its output, otherwise it is skipped with a logged message.
+
+### Coverage
+
+Ansible roles have no line-coverage tool, so coverage is tracked by exercising every task, branch, and variable:
+
+| Dimension | Covered |
+| --- | --- |
+| Tasks in `tasks/main.yml` | 3/3 — install `unzip`, download archive, unarchive binary |
+| `packer_verify_checksum` | both `true` (default scenario) and `false` (override scenario) |
+| `packer_bin_path` | default `/usr/local/bin` and a custom path (override scenario) |
+| Idempotence | asserted on every distro |
+| Packer functionality | binary present/executable, version assertion, HCL template validation, best-effort build |
+| Platforms | Ubuntu 24.04/22.04, Debian 12/11, Rocky Linux 9/8 |
+
+Every role task and conditional branch is exercised by at least one scenario.
 
 ### Running the tests locally
 
 ```bash
 pip3 install -r requirements.txt
-molecule test
+molecule test                # default scenario
+molecule test -s override    # checksum-disabled / custom path scenario
 ```
 
 Set `MOLECULE_DISTRO` to test against a specific distribution image (e.g. `MOLECULE_DISTRO=debian12 molecule test`).

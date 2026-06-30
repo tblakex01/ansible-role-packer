@@ -87,3 +87,38 @@ jobs:
           # Authenticate `packer init` plugin lookups against the GitHub API so
           # the end-to-end build is not throttled by anonymous rate limits.
           PACKER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  molecule-override:
+    name: Molecule (override)
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        # One Debian-family and one EL-family image are enough to cover the
+        # checksum-disabled and custom install-path branches.
+        distro:
+          - ubuntu2404
+          - rockylinux9
+
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v4
+        with:
+          path: "geerlingguy.packer"
+          persist-credentials: false
+
+      - name: Set up Python 3.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies.
+        run: pip3 install -r requirements.txt
+
+      - name: Run the override Molecule scenario.
+        run: molecule test -s override
+        env:
+          PY_COLORS: "1"
+          ANSIBLE_FORCE_COLOR: "1"
+          MOLECULE_DISTRO: ${{ matrix.distro }}
