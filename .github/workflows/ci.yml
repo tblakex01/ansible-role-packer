@@ -84,3 +84,6 @@ jobs:
           PY_COLORS: "1"
           ANSIBLE_FORCE_COLOR: "1"
           MOLECULE_DISTRO: ${{ matrix.distro }}
+          # Authenticate `packer init` plugin lookups against the GitHub API so
+          # the end-to-end build is not throttled by anonymous rate limits.
+          PACKER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}

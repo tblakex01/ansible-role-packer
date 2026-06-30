@@ -15,6 +15,9 @@
 
   vars:
     packer_e2e_dir: /tmp/packer-e2e
+    # GitHub API token (from the CI job env) used to authenticate `packer init`
+    # plugin lookups and avoid anonymous rate limits. Empty for local runs.
+    packer_github_api_token: "{{ lookup('env', 'PACKER_GITHUB_API_TOKEN') | default('', true) }}"
 
   tasks:
     # --- Installation checks ----------------------------------------------
@@ -88,6 +91,7 @@
         chdir: "{{ packer_e2e_dir }}"
       environment:
         PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+        PACKER_GITHUB_API_TOKEN: "{{ packer_github_api_token }}"
       register: packer_init_output
       changed_when: "'Installed' in packer_init_output.stdout"
 
@@ -97,6 +101,7 @@
         chdir: "{{ packer_e2e_dir }}"
       environment:
         PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+        PACKER_GITHUB_API_TOKEN: "{{ packer_github_api_token }}"
       changed_when: false
 
     - name: Run an end-to-end Packer build (packer build).
@@ -105,6 +110,7 @@
         chdir: "{{ packer_e2e_dir }}"
       environment:
         PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+        PACKER_GITHUB_API_TOKEN: "{{ packer_github_api_token }}"
       register: packer_build_output
       changed_when: true
 
