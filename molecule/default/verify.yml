@@ -27,7 +27,7 @@
         success_msg: "Packer binary is present and executable at {{ packer_bin_path }}/packer."
 
     - name: Gather the installed packer version.
-      ansible.builtin.command: packer version
+      ansible.builtin.command: "{{ packer_bin_path }}/packer version"
       changed_when: false
       register: packer_version_output
 
@@ -78,7 +78,7 @@
           }
 
     - name: Initialize Packer plugins (packer init).
-      ansible.builtin.command: packer init e2e.pkr.hcl
+      ansible.builtin.command: "{{ packer_bin_path }}/packer init e2e.pkr.hcl"
       args:
         chdir: "{{ packer_e2e_dir }}"
       environment:
@@ -87,7 +87,7 @@
       changed_when: "'Installed' in packer_init_output.stdout"
 
     - name: Validate the Packer template (packer validate).
-      ansible.builtin.command: packer validate e2e.pkr.hcl
+      ansible.builtin.command: "{{ packer_bin_path }}/packer validate e2e.pkr.hcl"
       args:
         chdir: "{{ packer_e2e_dir }}"
       environment:
@@ -95,7 +95,7 @@
       changed_when: false
 
     - name: Run an end-to-end Packer build (packer build).
-      ansible.builtin.command: packer build e2e.pkr.hcl
+      ansible.builtin.command: "{{ packer_bin_path }}/packer build e2e.pkr.hcl"
       args:
         chdir: "{{ packer_e2e_dir }}"
       environment:
