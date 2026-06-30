@@ -1,7 +1,8 @@
 ---
 - name: Verify
   hosts: all
-  become: true
+  # Containers are entered as root (see molecule.yml); no sudo-based become.
+  become: false
 
   vars:
     packer_e2e_dir: /tmp/packer-e2e
