@@ -20,9 +20,7 @@ provisioner:
   inventory:
     host_vars:
       instance:
-        # Connect as root. The geerlingguy images run as root, and sudo-based
-        # become is unreliable inside these containers on hosted runners
-        # (PAM account management errors), so run tasks directly as root.
+        # Connect as root (see the default scenario for the rationale).
         ansible_user: root
   playbooks:
     converge: ${MOLECULE_PLAYBOOK:-converge.yml}

@@ -1,0 +1,31 @@
+---
+# Exercises the role's non-default branches: checksum verification disabled
+# (the `omit` side of the get_url checksum conditional) and a custom install
+# path (packer_bin_path other than /usr/local/bin).
+- name: Converge
+  hosts: all
+  become: false
+
+  pre_tasks:
+    - name: Update apt cache.
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: ansible_facts.os_family == 'Debian'
+
+    - name: Ensure the custom Packer bin directory exists.
+      ansible.builtin.file:
+        path: /opt/packer/bin
+        state: directory
+        mode: "0755"
+
+  roles:
+    - role: geerlingguy.packer
+      vars:
+        packer_verify_checksum: false
+        # Unresolvable checksum URL: with verification disabled the role must
+        # omit it entirely, so converge only succeeds if the checksum branch is
+        # genuinely skipped. If the role ever regressed to verifying anyway,
+        # this would fail the download, making the disabled branch observable.
+        packer_checksum_url: "https://example.invalid/should-not-be-fetched"
+        packer_bin_path: /opt/packer/bin

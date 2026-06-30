@@ -1,0 +1,9 @@
+# Test/CI tooling for this role. Install with: pip3 install -r requirements.txt
+# Pinned with compatible-release (~=) constraints so CI runs are reproducible
+# while still picking up patch-level fixes.
+ansible~=9.11  # provides ansible-core >= 2.15 (role min_ansible_version)
+molecule~=6.0
+molecule-plugins[docker]~=23.5
+docker~=7.1
+ansible-lint~=24.9
+yamllint~=1.35

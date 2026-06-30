@@ -1,0 +1,40 @@
+---
+- name: Verify
+  hosts: all
+  become: false
+
+  # Load the role defaults for the expected version (loaded top-level because
+  # the defaults are self-referential; see the default scenario's verify play).
+  vars_files:
+    - ../../defaults/main.yml
+
+  vars:
+    expected_bin_path: /opt/packer/bin
+
+  tasks:
+    - name: Check that the packer binary is present at the custom path.
+      ansible.builtin.stat:
+        path: "{{ expected_bin_path }}/packer"
+      register: packer_binary
+
+    - name: Assert that packer was installed at the custom path.
+      ansible.builtin.assert:
+        that:
+          - packer_binary.stat.exists
+          - packer_binary.stat.executable
+        fail_msg: "Packer was not installed at {{ expected_bin_path }}/packer."
+        success_msg: "Packer installed at the custom bin path {{ expected_bin_path }}."
+
+    - name: Gather the installed packer version.
+      ansible.builtin.command: "{{ expected_bin_path }}/packer version"
+      changed_when: false
+      register: packer_version_output
+
+    - name: Assert the expected version was installed without checksum verification.
+      ansible.builtin.assert:
+        that:
+          - packer_version in packer_version_output.stdout
+        fail_msg: >-
+          Expected Packer {{ packer_version }}, got: {{ packer_version_output.stdout }}
+        success_msg: >-
+          Packer {{ packer_version }} installed with packer_verify_checksum disabled.

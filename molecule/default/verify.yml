@@ -1,12 +1,29 @@
 ---
 - name: Verify
   hosts: all
-  become: true
+  # Containers are entered as root (see molecule.yml); no sudo-based become.
+  become: false
+
+  # Load the role defaults as top-level vars so the assertions track the values
+  # the role actually uses. They must be loaded top-level (not into a namespace)
+  # because the defaults are self-referential -- e.g. packer_download_url embeds
+  # "{{ packer_version }}" -- which only resolves when the names exist at play
+  # scope. A scenario that overrides these should pass them as extra-vars (which
+  # outrank vars_files) so both converge and verify stay in sync.
+  vars_files:
+    - ../../defaults/main.yml
+
+  vars:
+    packer_e2e_dir: /tmp/packer-e2e
+    # GitHub API token (from the CI job env) used to authenticate `packer init`
+    # plugin lookups and avoid anonymous rate limits. Empty for local runs.
+    packer_github_api_token: "{{ lookup('env', 'PACKER_GITHUB_API_TOKEN') | default('', true) }}"
 
   tasks:
+    # --- Installation checks ----------------------------------------------
     - name: Check that the packer binary is present.
       ansible.builtin.stat:
-        path: /usr/local/bin/packer
+        path: "{{ packer_bin_path }}/packer"
       register: packer_binary
 
     - name: Assert that packer was installed.
@@ -14,16 +31,109 @@
         that:
           - packer_binary.stat.exists
           - packer_binary.stat.executable
-        fail_msg: "The packer binary was not installed at /usr/local/bin/packer."
+        fail_msg: "The packer binary was not installed at {{ packer_bin_path }}/packer."
+        success_msg: "Packer binary is present and executable at {{ packer_bin_path }}/packer."
 
     - name: Gather the installed packer version.
-      ansible.builtin.command: packer version
+      ansible.builtin.command: "{{ packer_bin_path }}/packer version"
       changed_when: false
       register: packer_version_output
 
     - name: Assert that the expected packer version is installed.
       ansible.builtin.assert:
         that:
-          - "'1.15.4' in packer_version_output.stdout"
+          - packer_version in packer_version_output.stdout
         fail_msg: >-
-          Expected Packer 1.15.4, got: {{ packer_version_output.stdout }}
+          Expected Packer {{ packer_version }}, got: {{ packer_version_output.stdout }}
+        success_msg: "Packer {{ packer_version }} is installed."
+
+    # --- End-to-end build -------------------------------------------------
+    # Prove the installed binary can initialize plugins, validate a template,
+    # and run a real build. The null builder with `communicator = "none"` plus
+    # a shell-local provisioner exercises the full Packer workflow without any
+    # cloud credentials or a target machine.
+    - name: Create the end-to-end working directory.
+      ansible.builtin.file:
+        path: "{{ packer_e2e_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write the end-to-end Packer template.
+      ansible.builtin.copy:
+        dest: "{{ packer_e2e_dir }}/e2e.pkr.hcl"
+        mode: "0644"
+        content: |
+          packer {
+            required_plugins {
+              null = {
+                source  = "github.com/hashicorp/null"
+                version = "~> 0.1"
+              }
+            }
+          }
+
+          source "null" "basic" {
+            communicator = "none"
+          }
+
+          build {
+            name    = "e2e"
+            sources = ["source.null.basic"]
+
+            provisioner "shell-local" {
+              inline = ["echo PACKER_E2E_OK"]
+            }
+          }
+
+    # Guaranteed, offline check: prove the installed binary parses and validates
+    # a real HCL2 template. `-syntax-only` does not require plugins or network.
+    - name: Validate the Packer template syntax (packer validate -syntax-only).
+      ansible.builtin.command: "{{ packer_bin_path }}/packer validate -syntax-only e2e.pkr.hcl"
+      args:
+        chdir: "{{ packer_e2e_dir }}"
+      changed_when: false
+
+    # Best-effort full build. `packer init` must fetch the null plugin from the
+    # GitHub plugin registry, which is not always reachable from CI containers.
+    # When it succeeds we run a real build and assert the provisioner output;
+    # otherwise the build is skipped (logged below, not silent) and the offline
+    # syntax validation above stands as the end-to-end check.
+    - name: Initialize Packer plugins (packer init).
+      ansible.builtin.command: "{{ packer_bin_path }}/packer init e2e.pkr.hcl"
+      args:
+        chdir: "{{ packer_e2e_dir }}"
+      environment:
+        PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+        PACKER_GITHUB_API_TOKEN: "{{ packer_github_api_token }}"
+      register: packer_init_output
+      changed_when: "'Installed' in packer_init_output.stdout"
+      failed_when: false
+
+    - name: Run an end-to-end Packer build (packer build).
+      ansible.builtin.command: "{{ packer_bin_path }}/packer build e2e.pkr.hcl"
+      args:
+        chdir: "{{ packer_e2e_dir }}"
+      environment:
+        PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+        PACKER_GITHUB_API_TOKEN: "{{ packer_github_api_token }}"
+      register: packer_build_output
+      changed_when: true
+      when: packer_init_output.rc == 0
+
+    - name: Assert the end-to-end build ran the provisioner.
+      ansible.builtin.assert:
+        that:
+          - "'PACKER_E2E_OK' in packer_build_output.stdout"
+        fail_msg: >-
+          The Packer build did not complete the shell-local provisioner.
+          Output: {{ packer_build_output.stdout | default('') }}
+        success_msg: "End-to-end Packer build completed and ran the provisioner."
+      when: packer_init_output.rc == 0
+
+    - name: Report that the full build was skipped (plugin registry unreachable).
+      ansible.builtin.debug:
+        msg: >-
+          Skipped the full packer build because plugin initialization failed
+          (rc={{ packer_init_output.rc }}); the template syntax was validated
+          offline instead.
+      when: packer_init_output.rc != 0

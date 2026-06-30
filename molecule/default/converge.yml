@@ -1,7 +1,9 @@
 ---
 - name: Converge
   hosts: all
-  become: true
+  # Containers are entered as root; sudo-based become is unreliable in the
+  # geerlingguy images on hosted runners, so run directly as root.
+  become: false
 
   pre_tasks:
     - name: Update apt cache.
