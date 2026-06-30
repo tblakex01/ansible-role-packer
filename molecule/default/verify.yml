@@ -3,10 +3,19 @@
   hosts: all
   become: true
 
+  # Pull in the role defaults so assertions track the values the role actually
+  # uses (e.g. packer_version, packer_bin_path) instead of hard-coded copies.
+  vars_files:
+    - ../../defaults/main.yml
+
+  vars:
+    packer_e2e_dir: /tmp/packer-e2e
+
   tasks:
+    # --- Installation checks ----------------------------------------------
     - name: Check that the packer binary is present.
       ansible.builtin.stat:
-        path: /usr/local/bin/packer
+        path: "{{ packer_bin_path }}/packer"
       register: packer_binary
 
     - name: Assert that packer was installed.
@@ -14,7 +23,8 @@
         that:
           - packer_binary.stat.exists
           - packer_binary.stat.executable
-        fail_msg: "The packer binary was not installed at /usr/local/bin/packer."
+        fail_msg: "The packer binary was not installed at {{ packer_bin_path }}/packer."
+        success_msg: "Packer binary is present and executable at {{ packer_bin_path }}/packer."
 
     - name: Gather the installed packer version.
       ansible.builtin.command: packer version
@@ -24,6 +34,83 @@
     - name: Assert that the expected packer version is installed.
       ansible.builtin.assert:
         that:
-          - "'1.15.4' in packer_version_output.stdout"
+          - packer_version in packer_version_output.stdout
         fail_msg: >-
-          Expected Packer 1.15.4, got: {{ packer_version_output.stdout }}
+          Expected Packer {{ packer_version }}, got: {{ packer_version_output.stdout }}
+        success_msg: "Packer {{ packer_version }} is installed."
+
+    # --- End-to-end build -------------------------------------------------
+    # Prove the installed binary can initialize plugins, validate a template,
+    # and run a real build. The null builder with `communicator = "none"` plus
+    # a shell-local provisioner exercises the full Packer workflow without any
+    # cloud credentials or a target machine.
+    - name: Create the end-to-end working directory.
+      ansible.builtin.file:
+        path: "{{ packer_e2e_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write the end-to-end Packer template.
+      ansible.builtin.copy:
+        dest: "{{ packer_e2e_dir }}/e2e.pkr.hcl"
+        mode: "0644"
+        content: |
+          packer {
+            required_plugins {
+              null = {
+                source  = "github.com/hashicorp/null"
+                version = "~> 0.1"
+              }
+            }
+          }
+
+          source "null" "basic" {
+            communicator = "none"
+          }
+
+          build {
+            name    = "e2e"
+            sources = ["source.null.basic"]
+
+            provisioner "shell-local" {
+              inline = ["echo PACKER_E2E_OK"]
+            }
+          }
+
+    - name: Initialize Packer plugins (packer init).
+      ansible.builtin.command: packer init e2e.pkr.hcl
+      args:
+        chdir: "{{ packer_e2e_dir }}"
+      environment:
+        PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+      register: packer_init_output
+      changed_when: "'Installed' in packer_init_output.stdout"
+
+    - name: Validate the Packer template (packer validate).
+      ansible.builtin.command: packer validate e2e.pkr.hcl
+      args:
+        chdir: "{{ packer_e2e_dir }}"
+      environment:
+        PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+      changed_when: false
+
+    - name: Run an end-to-end Packer build (packer build).
+      ansible.builtin.command: packer build e2e.pkr.hcl
+      args:
+        chdir: "{{ packer_e2e_dir }}"
+      environment:
+        PACKER_PLUGIN_PATH: "{{ packer_e2e_dir }}/plugins"
+      register: packer_build_output
+      changed_when: true
+
+    # `packer build` exits non-zero on failure, so the task above already fails
+    # the run if the build errors. This assertion additionally confirms the
+    # shell-local provisioner actually executed by checking for its output.
+    - name: Assert the end-to-end build ran the provisioner.
+      ansible.builtin.assert:
+        that:
+          - "'PACKER_E2E_OK' in packer_build_output.stdout"
+        fail_msg: >-
+          The Packer build did not complete the shell-local provisioner.
+          Output: {{ packer_build_output.stdout }}
+        success_msg: "End-to-end Packer build completed and ran the provisioner."

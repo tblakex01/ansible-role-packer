@@ -1,0 +1,7 @@
+# Test/CI tooling for this role. Install with: pip3 install -r requirements.txt
+ansible>=8.0  # provides ansible-core >= 2.15 (role min_ansible_version)
+molecule>=6.0
+molecule-plugins[docker]>=23.0
+docker>=7.0
+ansible-lint>=24.0
+yamllint>=1.35

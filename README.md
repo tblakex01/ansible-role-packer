@@ -64,10 +64,21 @@ None.
 
 ## Testing
 
-This role is tested with [Molecule](https://ansible.readthedocs.io/projects/molecule/) and Docker. To run the tests locally:
+This role is tested with [Molecule](https://ansible.readthedocs.io/projects/molecule/) and Docker, and is exercised on every push and pull request by the [CI workflow](.github/workflows/ci.yml).
+
+### What the tests cover
+
+The CI pipeline runs two stages:
+
+1. **Lint** — `yamllint` and `ansible-lint` over the role.
+2. **Molecule** — a matrix of supported distributions (Ubuntu 24.04/22.04, Debian 12/11, Rocky Linux 9/8) that each run the full `create → converge → idempotence → verify` sequence. This both installs Packer via the role and proves the run is idempotent.
+
+The Molecule `verify` step performs an **end-to-end check** of the installed binary: it asserts the expected version, then runs a real `packer init`, `packer validate`, and `packer build` against a `null`-builder template with a `shell-local` provisioner (no cloud credentials or target machine required), confirming Packer is fully functional after installation.
+
+### Running the tests locally
 
 ```bash
-pip3 install ansible molecule molecule-plugins[docker] docker ansible-lint yamllint
+pip3 install -r requirements.txt
 molecule test
 ```
 

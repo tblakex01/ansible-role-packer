@@ -1,0 +1,80 @@
+---
+name: CI
+'on':
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  schedule:
+    # Re-run weekly so we catch upstream breakage (new distro images, Packer
+    # releases, plugin registry changes) even when the role itself is idle.
+    - cron: "30 5 * * 2"
+
+defaults:
+  run:
+    # Check the role out into a directory matching its Galaxy name so that
+    # `molecule converge` can resolve `geerlingguy.packer` from the roles path.
+    working-directory: "geerlingguy.packer"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v4
+        with:
+          path: "geerlingguy.packer"
+
+      - name: Set up Python 3.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install test dependencies.
+        run: pip3 install yamllint ansible ansible-lint
+
+      - name: Lint YAML files.
+        run: yamllint .
+
+      - name: Lint the Ansible role.
+        run: ansible-lint
+
+  molecule:
+    name: Molecule
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        # Distros mirror the platforms declared in meta/main.yml. Each runs the
+        # full Molecule sequence: create -> converge -> idempotence -> verify.
+        distro:
+          - ubuntu2404
+          - ubuntu2204
+          - debian12
+          - debian11
+          - rockylinux9
+          - rockylinux8
+
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v4
+        with:
+          path: "geerlingguy.packer"
+
+      - name: Set up Python 3.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install test dependencies.
+        run: pip3 install ansible molecule molecule-plugins[docker] docker
+
+      - name: Run Molecule tests.
+        run: molecule test
+        env:
+          PY_COLORS: "1"
+          ANSIBLE_FORCE_COLOR: "1"
+          MOLECULE_DISTRO: ${{ matrix.distro }}
